@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useCartStore } from '~/stores/cart';
+import { useAuthStore } from '~/stores/auth';
 import logoImg from '~/assets/logo.png';
 
 // Estado del menú móvil y tema
@@ -11,7 +12,6 @@ const isDarkMode = ref(false);
 const showScrollButton = ref(false);
 
 const handleScroll = () => {
-  // Mostramos el botón si el usuario ha bajado más de 300px
   showScrollButton.value = window.scrollY > 300;
 };
 
@@ -19,8 +19,9 @@ const scrollToTop = () => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
-// Lógica de Pinia para el carrito
+// Lógica de Pinia para el carrito y autenticación
 const cartStore = useCartStore();
+const authStore = useAuthStore();
 const cartCount = computed(() => cartStore.count);
 
 const toggleMenu = () => { isMenuOpen.value = !isMenuOpen.value; };
@@ -37,7 +38,15 @@ const toggleTheme = () => {
   localStorage.setItem('theme', theme);
 };
 
+// Función para cerrar sesión y cerrar el menú móvil si estaba abierto
+const handleLogout = () => {
+  authStore.logout();
+  closeMenu();
+};
+
 onMounted(() => {
+  authStore.initAuth();
+
   // Inicialización del tema
   const savedTheme = localStorage.getItem('theme');
   if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -50,7 +59,6 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  // Limpieza del listener al destruir el componente
   window.removeEventListener('scroll', handleScroll);
 });
 </script>
@@ -60,7 +68,6 @@ onUnmounted(() => {
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-20">
 
-        <!-- LOGO -->
         <NuxtLink to="/" class="flex items-center gap-2 group no-underline" @click="closeMenu">
           <div class="h-12 w-auto flex items-center">
              <img :src="logoImg" alt="Logo Ukiyo" class="h-full w-auto object-contain" width="48" height="48" />
@@ -71,7 +78,6 @@ onUnmounted(() => {
           </div>
         </NuxtLink>
 
-        <!-- ENLACES ESCRITORIO -->
         <div class="hidden md:flex space-x-6 lg:space-x-8 items-center">
           <NuxtLink to="/" class="nav-link" active-class="active-link">Inicio</NuxtLink>
           <NuxtLink to="/delivery" class="nav-link" active-class="active-link">Menú</NuxtLink>
@@ -80,55 +86,68 @@ onUnmounted(() => {
           <NuxtLink to="/contacto" class="nav-link" active-class="active-link">Contacto</NuxtLink>
         </div>
 
-        <!-- ACCIONES DERECHA -->
         <div class="flex items-center gap-2 md:gap-4">
           
-          <!-- 👤 ACCESO USUARIO (Invertido: Oscuro en Luz / Claro en Oscuridad) -->
-          <NuxtLink 
-            to="/login" 
-            class="hidden sm:flex items-center gap-2 px-5 py-2 rounded-full transition-all duration-300 font-bold uppercase text-[10px] tracking-widest group shadow-md hover:scale-105 active:scale-95
-                   bg-gray-900 text-white hover:bg-black 
-                   dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:rotate-12">
-              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-            </svg>
-            <span class="hidden lg:inline">Entrar</span>
-          </NuxtLink>
+          <template v-if="!authStore.isAuthenticated">
+            <NuxtLink 
+              to="/login" 
+              class="hidden sm:flex items-center gap-2 px-5 py-2 rounded-full transition-all duration-300 font-bold uppercase text-[10px] tracking-widest group shadow-md hover:scale-105 active:scale-95
+                     bg-gray-900 text-white hover:bg-black 
+                     dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:rotate-12">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
+              <span class="hidden lg:inline">Entrar</span>
+            </NuxtLink>
+          </template>
+          
+          <template v-else>
+            <div class="hidden sm:flex items-center gap-3">
+              <span class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest hidden lg:inline-block">
+                Hola, <span class="text-ukiyo-gold">{{ authStore.user?.nombre }}</span>
+              </span>
+              <button 
+                @click="handleLogout" 
+                class="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors" 
+                title="Cerrar Sesión"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+              </button>
+            </div>
+          </template>
 
-          <!-- Botón Tema -->
           <button @click="toggleTheme" class="p-2 text-gray-700 dark:text-gray-200 hover:text-ukiyo-gold transition-colors" aria-label="Cambiar tema">
             <span v-if="isDarkMode">☀️</span>
             <span v-else>🌙</span>
           </button>
 
-          <!-- 🛒 BOTÓN CARRITO (Actualizado según image_acebfa.png) -->
           <NuxtLink 
             to="/cart" 
             class="relative px-5 py-2.5 bg-ukiyo-gold text-black rounded-full hover:scale-105 hover:bg-white transition-all shadow-lg shadow-ukiyo-gold/20 flex items-center gap-3 group"
           >
-            <!-- Icono Bolsa de la imagen -->
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
               <line x1="3" y1="6" x2="21" y2="6"/>
               <path d="M16 10a4 4 0 0 1-8 0"/>
             </svg>
             
-            <!-- Texto idéntico a la imagen -->
             <span class="font-bold text-sm md:text-base tracking-tight">
               Hacer Pedido
             </span>
             
-            <!-- Badge de cantidad -->
             <span
               v-if="cartCount > 0"
-              class="absolute -top-1 -right-1 bg-black dark:bg-white text-white dark:text-black text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-ukiyo-gold shadow-md animate-bounce"
+              class="absolute -top-1 -right-1 bg-black dark:bg-white text-white dark:text-black text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-ukiyo-gold shadow-md"
             >
               {{ cartCount }}
             </span>
           </NuxtLink>
 
-          <!-- Hamburguesa (Móvil) -->
           <button @click="toggleMenu" class="md:hidden p-2 text-gray-900 dark:text-white hover:text-ukiyo-gold transition-colors ml-1" aria-label="Abrir menú">
             <div class="w-6 h-0.5 bg-current mb-1.5 transition-all" :class="{'rotate-45 translate-y-2': isMenuOpen}"></div>
             <div class="w-6 h-0.5 bg-current mb-1.5 transition-all" :class="{'opacity-0': isMenuOpen}"></div>
@@ -138,7 +157,6 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- MENÚ MÓVIL -->
     <div v-show="isMenuOpen" class="md:hidden bg-white dark:bg-ukiyo-nav border-b dark:border-gray-800 absolute w-full left-0 shadow-2xl transition-all">
       <div class="px-4 pt-4 pb-8 flex flex-col items-center gap-2">
         <NuxtLink to="/" class="mobile-link" @click="closeMenu">Inicio</NuxtLink>
@@ -149,21 +167,40 @@ onUnmounted(() => {
         
         <div class="w-full border-t border-gray-100 dark:border-gray-800 my-4"></div>
         
-        <NuxtLink 
-          to="/login" 
-          class="w-full flex justify-center items-center gap-2 font-bold uppercase text-xs tracking-widest py-4 rounded-xl shadow-sm transition-colors
-                 bg-gray-900 text-white dark:bg-white dark:text-gray-900" 
-          @click="closeMenu"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-          </svg>
-          Mi Cuenta / Entrar
-        </NuxtLink>
+        <template v-if="!authStore.isAuthenticated">
+          <NuxtLink 
+            to="/login" 
+            class="w-full flex justify-center items-center gap-2 font-bold uppercase text-xs tracking-widest py-4 rounded-xl shadow-sm transition-colors
+                   bg-gray-900 text-white dark:bg-white dark:text-gray-900" 
+            @click="closeMenu"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+            Mi Cuenta / Entrar
+          </NuxtLink>
+        </template>
+        
+        <template v-else>
+          <div class="w-full text-center mb-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
+            Hola, <span class="text-ukiyo-gold">{{ authStore.user?.nombre }}</span>
+          </div>
+          <button 
+            @click="handleLogout"
+            class="w-full flex justify-center items-center gap-2 font-bold uppercase text-xs tracking-widest py-4 rounded-xl shadow-sm transition-colors border border-red-100 dark:border-red-900/50 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            Cerrar Sesión
+          </button>
+        </template>
+
       </div>
     </div>
 
-    <!-- ⬆️ BOTÓN VOLVER ARRIBA (Diseño según image_acef9e.png) -->
     <transition
       enter-active-class="transition duration-300 ease-out"
       enter-from-class="translate-y-10 opacity-0"
@@ -179,7 +216,6 @@ onUnmounted(() => {
         aria-label="Volver arriba"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-          <!-- Icono de flecha hacia arriba limpio -->
           <path d="m5 12 7-7 7 7"/>
           <path d="M12 19V5"/>
         </svg>

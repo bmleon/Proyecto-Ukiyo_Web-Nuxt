@@ -5,6 +5,19 @@ import { useCartStore } from '~/stores/cart';
 // Instanciamos el store de Pinia
 const cartStore = useCartStore();
 
+// --- SISTEMA DE NOTIFICACIONES (TOAST) ---
+const toastMessage = ref('');
+const showToast = ref(false);
+
+const triggerToast = (productName: string) => {
+  toastMessage.value = `¡${productName} añadido al pedido!`;
+  showToast.value = true;
+  // Ocultar después de 3 segundos
+  setTimeout(() => {
+    showToast.value = false;
+  }, 3000);
+};
+
 // --- CATEGORÍAS OFICIALES ---
 const categories = [
   { id: 'all', name: 'Todo' },
@@ -24,7 +37,7 @@ const categories = [
 
 const selectedCategory = ref('all');
 
-// --- MENÚ COMPLETO UKIYO (ORDEN CORREGIDO Y EXTENSIONES CORREGIDAS) ---
+// --- MENÚ COMPLETO UKIYO ---
 const menuItems = ref([
   // 1. ENTRANTES (.jpg)
   { id: 1, name: 'Edamame', category: 'Entrantes', price: 4.5, description: 'Tiernas vainas de soja al vapor.', image: 'edamame.jpg', allergens: ['Soja'] },
@@ -90,7 +103,7 @@ const menuItems = ref([
   { id: 45, name: 'HELADO CALIENTE PERFECTO TURRÓN', category: 'Postres', price: 4.50, description: 'Sabor tradicional cálido.', image: 'helado_turron.jpg', allergens: ['Lácteos', 'Frutos de cáscara', 'Huevos'] },
   { id: 58, name: 'MOCHIS HELADO FRAMBUESA (2 Uds)', category: 'Postres', price: 3.50, description: 'Refrescante helado de frambuesa envuelto en mochi.', image: 'mochi_helado_frambuesa.jpg', allergens: ['Soja', 'Lácteos'] },
 
-  // 11. BEBIDAS (.png SEGÚN WARNINGS - REORDENADO)
+  // 11. BEBIDAS (.png)
   { id: 46, name: 'AGUA', category: 'Bebidas', price: 1.50, description: 'Agua mineral natural 50cl.', image: 'agua.png', allergens: [] },
   { id: 47, name: 'COCA COLA', category: 'Bebidas', price: 2.50, description: 'Refresco original 33cl.', image: 'cocacola.png', allergens: [] },
   { id: 48, name: 'COCA COLA ZERO', category: 'Bebidas', price: 2.50, description: 'Sabor original zero azúcar.', image: 'cocacola_zero.png', allergens: [] },
@@ -106,10 +119,9 @@ const menuItems = ref([
   { id: 55, name: 'CERVEZA JAPONESA', category: 'Bebidas', price: 3.00, description: 'Importación tradicional japonesa.', image: 'cerveza_japonesa.png', allergens: ['Gluten'] },
   
   // RESTO DE BEBIDAS
-  // CORRECCIÓN: La imagen del vino es .jpg
   { id: 56, name: 'VINO BLANCO OROYA', category: 'Bebidas', price: 11.80, description: 'Especial para maridar con Sushi 0.75L.', image: 'vino_oroya.jpg', allergens: ['Sulfitos'] },
 
-  // 12. SUPLEMENTOS (AL FINAL - Sin imagen)
+  // 12. SUPLEMENTOS
   { id: 38, name: 'SALSA EXTRA', category: 'Suplementos', price: 0.50, description: 'Tu salsa favorita extra.', image: '', allergens: [] },
   { id: 39, name: 'ENVASE EXTRA', category: 'Suplementos', price: 0.50, description: 'Envase adicional para transporte.', image: '', allergens: [] }
 ]);
@@ -128,12 +140,33 @@ const addToCart = (product: any) => {
     price: product.price,
     image: product.image ? `/comida/${product.image}` : ''
   });
+  // Disparamos la notificación
+  triggerToast(product.name);
 };
 </script>
 
 <template>
-  <div class="min-h-screen pb-20">
-    <!-- Cabecera -->
+  <div class="min-h-screen pb-20 relative">
+    
+    <transition
+      enter-active-class="transition duration-300 ease-out"
+      enter-from-class="transform translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
+      enter-to-class="transform translate-y-0 opacity-100 sm:translate-x-0"
+      leave-active-class="transition duration-200 ease-in"
+      leave-from-class="transform translate-y-0 opacity-100 sm:translate-x-0"
+      leave-to-class="transform translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
+    >
+      <div 
+        v-if="showToast" 
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:left-auto sm:right-6 sm:bottom-6 z-50 bg-green-50 dark:bg-green-900/30 border border-green-500 text-green-700 dark:text-green-400 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 font-bold text-sm"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        {{ toastMessage }}
+      </div>
+    </transition>
+
     <div class="pt-12 pb-8 text-center px-4">
       <h1 class="text-4xl md:text-5xl font-black text-gray-900 dark:text-white mb-2 uppercase tracking-widest">
         Carta <span class="text-ukiyo-gold">Ukiyo</span>
@@ -143,10 +176,9 @@ const addToCart = (product: any) => {
       </p>
     </div>
 
-    <!-- Filtros de Categoría -->
-    <div class="sticky top-20 z-40 bg-gray-50/95 dark:bg-ukiyo-dark/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 mb-8 shadow-sm">
-      <div class="max-w-7xl mx-auto relative group">
-        <div class="overflow-x-auto no-scrollbar scroll-smooth flex items-center gap-3 px-4 py-4">
+    <div class="sticky top-20 z-40 bg-white/95 dark:bg-ukiyo-nav/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 mb-8 shadow-sm">
+      <div class="max-w-7xl mx-auto flex">
+        <div class="overflow-x-auto no-scrollbar scroll-smooth flex items-center gap-3 px-4 py-4 w-full">
           <button 
             v-for="cat in categories" 
             :key="cat.id"
@@ -159,18 +191,15 @@ const addToCart = (product: any) => {
             {{ cat.name }}
           </button>
         </div>
-        <div class="absolute right-0 top-0 h-full w-12 bg-gradient-to-l from-gray-50 dark:from-ukiyo-dark to-transparent pointer-events-none opacity-50"></div>
       </div>
     </div>
 
-    <!-- Grid de Productos -->
     <div class="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
       <div 
         v-for="product in filteredProducts" 
         :key="product.id"
         class="group bg-white dark:bg-ukiyo-nav rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 border border-gray-100 dark:border-gray-800 flex flex-col h-full hover:-translate-y-2"
       >
-        <!-- Contenedor de Imagen -->
         <div class="relative h-56 overflow-hidden bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
           <img 
             v-if="product.image"
@@ -179,7 +208,6 @@ const addToCart = (product: any) => {
             class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
             loading="lazy" 
           />
-          <!-- Icono si no hay imagen -->
           <div v-else class="flex flex-col items-center opacity-30">
               <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-ukiyo-gold">
                 <path d="m15 11-1 9"/><path d="m19 11-4-7"/><path d="M2 11h20"/><path d="m3.5 11 1.6 7.4a2 2 0 0 0 2 1.6h9.8a2 2 0 0 0 2-1.6l1.7-7.4"/><path d="m9 11 1 9"/><path d="M5 11 9 4"/>
@@ -193,7 +221,6 @@ const addToCart = (product: any) => {
           </div>
         </div>
 
-        <!-- Info -->
         <div class="p-6 flex flex-col flex-grow">
           <h3 class="text-xl font-bold text-gray-900 dark:text-white group-hover:text-ukiyo-gold transition-colors duration-300 uppercase tracking-tighter mb-2">
             {{ product.name }}
