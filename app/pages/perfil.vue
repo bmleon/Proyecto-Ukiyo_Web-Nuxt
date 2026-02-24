@@ -7,24 +7,23 @@ const API_URL = 'http://ukiyocazorla.es/api';
 
 // Campos del formulario
 const username = ref('');
-const email = ref(''); // El email suele ser de solo lectura
+const email = ref(''); 
+const password = ref(''); // Nuevo campo para la contraseña
 
 // Estados de la interfaz
 const isLoading = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
 
-// 🛡️ Proteger la ruta: Comprobamos si hay sesión al entrar
+// 🛡️ Proteger la ruta al entrar
 onMounted(() => {
-  // Inicializamos la sesión por si el usuario recarga la página de golpe
   authStore.initAuth();
 
   if (!authStore.isAuthenticated) {
-    // Si no está logeado, lo mandamos a la página de login
     navigateTo('/login');
   } else {
-    // Si está logeado, rellenamos los campos con sus datos actuales
-    username.value = authStore.user?.profile?.username || '';
+    // Rellenamos con los datos actuales
+    username.value = authStore.user?.profile?.username || authStore.user?.username || '';
     email.value = authStore.user?.email || '';
   }
 });
@@ -35,35 +34,59 @@ const updateProfile = async () => {
   errorMessage.value = '';
 
   try {
-    // Petición al backend de Fabricio para actualizar el perfil (Ruta pluralizada)
+    const headers = {
+      'Authorization': `Bearer ${authStore.token}`
+    };
+
+    // 1. ACTUALIZAR SEGURIDAD (Email y/o Contraseña) en el modelo Usuario
+    const userId = authStore.user?.id;
+    const bodyUsuario: any = { email: email.value };
+    
+    // Solo mandamos la contraseña si el usuario ha escrito una nueva
+    if (password.value.trim() !== '') {
+      bodyUsuario.password = password.value;
+    }
+
+    // Suponemos que la ruta para editar al usuario es PATCH /usuarios/:id
+    await $fetch(`${API_URL}/usuarios/${userId}`, {
+      method: 'PATCH',
+      headers,
+      body: bodyUsuario
+    });
+
+    // 2. ACTUALIZAR IDENTIDAD (Nombre de usuario) en el modelo Perfil
     await $fetch(`${API_URL}/perfiles`, {
       method: 'PATCH',
-      headers: {
-        // ¡LA LLAVE MAESTRA! Enviamos el token para demostrar quiénes somos
-        'Authorization': `Bearer ${authStore.token}`
-      },
+      headers,
       body: {
         username: username.value
       }
     });
 
-    // Si el servidor dice OK, actualizamos nuestro Store local (para que cambie en el Navbar)
-    if (authStore.user && authStore.user.profile) {
-      authStore.user.profile.username = username.value;
-      // Guardamos en el navegador (protegido para evitar errores en recargas rápidas)
+    // Si todo va bien, actualizamos la "memoria" de la web (Pinia y LocalStorage)
+    if (authStore.user) {
+      authStore.user.email = email.value;
+      if (authStore.user.profile) {
+        authStore.user.profile.username = username.value;
+      } else {
+        authStore.user.username = username.value;
+      }
+      
       if (typeof window !== 'undefined') {
         localStorage.setItem('auth_user', JSON.stringify(authStore.user));
       }
     }
 
-    successMessage.value = '¡Perfil actualizado con éxito!';
+    successMessage.value = '¡Tus datos se han actualizado con éxito!';
+    password.value = ''; // Vaciamos la contraseña por seguridad visual
     
-    // Limpiamos el mensaje de éxito después de 3 segundos para que quede limpio
-    setTimeout(() => { successMessage.value = ''; }, 3000);
+    setTimeout(() => { successMessage.value = ''; }, 4000);
 
   } catch (error: any) {
-    console.error('Error al actualizar perfil:', error);
-    errorMessage.value = error.data?.message || 'Error al guardar los cambios. Revisa la conexión.';
+    console.error('Error al actualizar:', error);
+    let msg = error.data?.message || 'Error al guardar los cambios. Revisa la conexión.';
+    if (Array.isArray(msg)) msg = msg.join(', ');
+    errorMessage.value = msg;
   } finally {
     isLoading.value = false;
   }
@@ -82,23 +105,12 @@ const updateProfile = async () => {
           </div>
           <div>
             <h1 class="text-3xl font-black text-gray-900 dark:text-white uppercase tracking-tighter">Mi Perfil</h1>
-            <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">Gestiona tu identidad en Ukiyo</p>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">Gestiona tu cuenta y seguridad</p>
           </div>
         </div>
 
         <form @submit.prevent="updateProfile" class="space-y-6">
           
-          <div>
-            <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Correo Electrónico</label>
-            <input 
-              v-model="email" 
-              type="email" 
-              disabled 
-              class="w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-gray-900 border-transparent text-gray-400 cursor-not-allowed transition-all" 
-            />
-            <p class="text-[10px] text-gray-400 mt-2 italic">* El correo electrónico está vinculado a tu cuenta y no puede modificarse aquí.</p>
-          </div>
-
           <div>
             <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Nombre de Usuario</label>
             <input 
@@ -107,6 +119,29 @@ const updateProfile = async () => {
               required 
               class="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-transparent focus:ring-2 focus:ring-ukiyo-gold outline-none text-gray-900 dark:text-white transition-all" 
             />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Correo Electrónico</label>
+            <input 
+              v-model="email" 
+              type="email" 
+              required 
+              class="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-transparent focus:ring-2 focus:ring-ukiyo-gold outline-none text-gray-900 dark:text-white transition-all" 
+            />
+          </div>
+
+          <div class="w-full border-t border-gray-100 dark:border-gray-800 my-6"></div>
+
+          <div>
+            <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Nueva Contraseña</label>
+            <input 
+              v-model="password" 
+              type="password" 
+              placeholder="••••••••"
+              class="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-transparent focus:ring-2 focus:ring-ukiyo-gold outline-none text-gray-900 dark:text-white transition-all" 
+            />
+            <p class="text-[10px] text-gray-400 mt-2 italic">* Deja este campo en blanco si no quieres cambiar tu contraseña actual.</p>
           </div>
 
           <div v-if="errorMessage" class="text-red-500 text-xs font-bold text-center bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-100 dark:border-red-800">

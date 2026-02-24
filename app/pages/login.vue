@@ -2,14 +2,14 @@
 import { ref } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 
-// Interfaz actualizada
 interface AuthResponse {
-  accessToken: string;
+  access_token: string;
   user: {
-    id: number;
+    id: string;
+    username: string;
     email: string;
     profile?: {
-      id: number;
+      id: string | number;
       username: string;
       avatarUrl?: string;
     };
@@ -43,78 +43,93 @@ const handleSubmit = async () => {
   try {
     if (isLogin.value) {
       // ==========================================
-      // FLUJO 1: INICIAR SESIÓN NORMAL
+      // FLUJO 1: INICIAR SESIÓN MANUAL
       // ==========================================
-      const response = await $fetch<AuthResponse>(`${API_URL}/auth/login`, {
+      
+      // Intento A: Enviamos el dato llamándolo 'email'
+      let response = await $fetch<AuthResponse>(`${API_URL}/auth/login`, {
         method: 'POST',
-        body: {
-          email: identificador.value,
-          password: password.value
-        }
+        body: { email: identificador.value, password: password.value }
+      }).catch(async () => {
+        // Intento B (Si el A falla): Lo enviamos llamándolo 'username' en la misma fracción de segundo
+        return await $fetch<AuthResponse>(`${API_URL}/auth/login`, {
+          method: 'POST',
+          body: { username: identificador.value, password: password.value }
+        });
       });
 
-      if (response.accessToken) {
-        authStore.saveSession(response.user, response.accessToken);
+      if (response?.access_token) {
+        const userData = response.user;
+        if (!userData.profile) {
+          userData.profile = { id: userData.id, username: userData.username };
+        }
+        authStore.saveSession(userData, response.access_token);
         await navigateTo('/');
       }
 
     } else {
       // ==========================================
-      // FLUJO 2: REGISTRO ORQUESTADO (3 PASOS)
+      // FLUJO 2: REGISTRO ORQUESTADO
       // ==========================================
 
-      // PASO 1: Nace la cuenta (Seguridad)
+      // PASO 1: Nace la cuenta (¡Comprobado que funciona!)
       await $fetch(`${API_URL}/usuarios`, {
         method: 'POST',
         body: {
+          username: name.value, 
           email: identificador.value,
           password: password.value
         }
       });
 
-      // PASO 2: Autenticamos la nueva cuenta para obtener el Token
-      const loginResponse = await $fetch<AuthResponse>(`${API_URL}/auth/login`, {
-        method: 'POST',
-        body: {
-          email: identificador.value,
-          password: password.value
-        }
-      });
+      // Si llegamos aquí sin errores, LA CUENTA ESTÁ CREADA.
+      // Ahora intentamos el Auto-Login y el Perfil de forma protegida.
+      try {
+        const loginResponse = await $fetch<AuthResponse>(`${API_URL}/auth/login`, {
+          method: 'POST',
+          body: { username: identificador.value, password: password.value }
+        });
 
-      const token = loginResponse.accessToken;
+        const token = loginResponse.access_token;
 
-      // PASO 3: Creamos la Identidad (Perfil) vinculada a esa cuenta
-      const profileResponse = await $fetch<any>(`${API_URL}/perfiles`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: {
-          username: name.value
-        }
-      });
+        const profileResponse = await $fetch<any>(`${API_URL}/perfiles`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: { username: name.value }
+        }).catch(() => null); // Si el perfil falla, no pasa nada
 
-      // ¡ÉXITO! Construimos el usuario completo para guardarlo en Pinia
-      const completeUser = {
-        ...loginResponse.user,
-        profile: {
-          id: profileResponse.id || Date.now(), // Cogemos el ID real si el backend lo devuelve
-          username: name.value
-        }
-      };
+        const completeUser = {
+          ...loginResponse.user,
+          profile: {
+            id: profileResponse?.id || loginResponse.user.id, 
+            username: name.value
+          }
+        };
 
-      // Guardamos sesión directamente y redirigimos (así el usuario no tiene que hacer login manual tras registrarse)
-      authStore.saveSession(completeUser, token);
-      
-      successMessage.value = '¡Cuenta y perfil creados con éxito! Entrando...';
-      
-      setTimeout(async () => {
-        await navigateTo('/');
-      }, 1500);
+        authStore.saveSession(completeUser, token);
+        successMessage.value = '¡Cuenta creada con éxito! Entrando...';
+        setTimeout(async () => { await navigateTo('/'); }, 1500);
+
+      } catch (autoLoginError) {
+        // Si el Auto-Login falla por el Gateway de Fabricio, no asustamos al usuario.
+        // La cuenta está creada en la base de datos, así que le pedimos que inicie sesión.
+        successMessage.value = '¡Cuenta creada con éxito! Por favor, inicia sesión.';
+        isLogin.value = true; // Pasamos a la vista de login
+        password.value = ''; // Borramos la contraseña por seguridad
+      }
     }
   } catch (error: any) {
-    console.error('Error en el flujo de Auth:', error);
-    errorMessage.value = error.data?.message || 'Error de conexión. Revisa los CORS en el servidor.';
+    console.error('Error principal:', error);
+    
+    let msg = error.data?.message || 'Error al procesar la solicitud.';
+    if (Array.isArray(msg)) msg = msg.join(', ');
+
+    // Traductor de errores feos de Prisma
+    if (typeof msg === 'string' && msg.includes('UniqueConstraintViolation')) {
+      msg = 'Ese correo electrónico ya está registrado. Por favor, inicia sesión.';
+    }
+    
+    errorMessage.value = msg;
   } finally {
     isLoading.value = false;
   }

@@ -1,14 +1,14 @@
 import { defineStore } from 'pinia';
 
-// 1. Definimos las nuevas interfaces según el modelo de Fabricio
 export interface UserProfile {
-  id: number;
+  id: string | number;
   username: string;
   avatarUrl?: string;
 }
 
 export interface User {
-  id: number;
+  id: string;
+  username?: string;
   email: string;
   profile?: UserProfile;
 }
@@ -25,25 +25,32 @@ export const useAuthStore = defineStore('auth', {
       this.token = token;
       this.isAuthenticated = true;
       
-      // Guardamos en el navegador para no perder la sesión al recargar
-      localStorage.setItem('auth_token', token);
-      localStorage.setItem('auth_user', JSON.stringify(userData));
+      // Guardamos en el navegador (asegurando que estamos en el cliente)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('auth_token', token);
+        localStorage.setItem('auth_user', JSON.stringify(userData));
+      }
     },
     initAuth() {
-      const token = localStorage.getItem('auth_token');
-      const user = localStorage.getItem('auth_user');
-      if (token && user) {
-        this.token = token;
-        this.user = JSON.parse(user);
-        this.isAuthenticated = true;
+      if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('auth_token');
+        const user = localStorage.getItem('auth_user');
+        if (token && user) {
+          this.token = token;
+          this.user = JSON.parse(user);
+          this.isAuthenticated = true;
+        }
       }
     },
     logout() {
       this.user = null;
       this.token = null;
       this.isAuthenticated = false;
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+      }
+      navigateTo('/login');
     }
   }
 });
