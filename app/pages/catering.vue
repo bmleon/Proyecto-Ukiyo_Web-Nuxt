@@ -1,102 +1,65 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 
-// SEO y Metadatos
-useHead({
-  title: 'Catering & Eventos | Ukiyo',
-  meta: [
-    { name: 'description', content: 'Organiza tu evento con Ukiyo. Ofrecemos catering de sushi y cocina japonesa para bodas, empresas y fiestas privadas.' }
-  ]
-})
+const localePath = useLocalePath();
+const { t } = useI18n();
 
-interface CateringForm {
-  name: string;
-  email: string;
-  phone: string;
-  date: string;
-  guests: string | number;
-  eventType: string;
-  message: string;
-}
-
-const cateringForm = ref<CateringForm>({
-  name: '',
-  email: '',
-  phone: '',
-  date: '',
-  guests: '',
-  eventType: 'corporate',
-  message: ''
-});
-
-const isSubmitting = ref(false);
-const showSuccess = ref(false);
-
-// Errores para validación individual
-const errors = ref({
-  name: '',
-  email: '',
-  phone: '',
-  date: '',
-  guests: ''
-});
-
-const today = new Date().toISOString().substring(0, 10);
-
-// --- VALIDACIONES EN TIEMPO REAL ---
-const validateName = () => {
-  errors.value.name = (!cateringForm.value.name || cateringForm.value.name.trim().length < 3) 
-    ? 'Mínimo 3 caracteres.' : '';
-};
-
-const validateEmail = () => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  errors.value.email = (!cateringForm.value.email || !emailRegex.test(cateringForm.value.email))
-    ? 'Email no válido.' : '';
-};
-
-const validatePhone = () => {
-  const phoneRegex = /^[6789][0-9]{8}$/;
-  errors.value.phone = (cateringForm.value.phone && !phoneRegex.test(cateringForm.value.phone))
-    ? '9 dígitos (6, 7, 8 o 9).' : '';
-};
-
-const validateDate = () => {
-  errors.value.date = (cateringForm.value.date && cateringForm.value.date < today)
-    ? 'Fecha no válida.' : '';
-};
-
-const validateGuests = () => {
-  errors.value.guests = (cateringForm.value.guests && Number(cateringForm.value.guests) < 10)
-    ? 'Mínimo 10 invitados.' : '';
-};
-
-const validateAll = (): boolean => {
-  validateName(); validateEmail(); validatePhone(); validateDate(); validateGuests();
-  return !Object.values(errors.value).some(error => error !== '');
-};
-
-const submitCatering = () => {
-  if (!validateAll()) return;
-  isSubmitting.value = true;
-  
-  setTimeout(() => {
-    isSubmitting.value = false;
-    showSuccess.value = true;
-    cateringForm.value = { name: '', email: '', phone: '', date: '', guests: '', eventType: 'corporate', message: '' };
-    setTimeout(() => showSuccess.value = false, 5000);
-  }, 1500);
-};
-
-const services = [
-  { title: 'Eventos Corporativos', desc: 'Impresiona a tus clientes y socios con una experiencia gastronómica de alto nivel.', icon: '🏢' },
-  { title: 'Bodas y Celebraciones', desc: 'El día más especial merece el mejor sabor. Estaciones de sushi en vivo.', icon: '💍' },
-  { title: 'Fiestas Privadas', desc: 'Lleva la experiencia Ukiyo a tu casa. Bandejas personalizadas y chefs a domicilio.', icon: '🎉' }
+// 1. Fotos de catering (.jpeg)
+const cateringImages = [
+  '/catering/imagen1.jpeg',
+  '/catering/imagen2.jpeg',
+  '/catering/imagen3.jpeg',
+  '/catering/imagen4.jpeg',
+  '/catering/imagen5.jpeg'
 ];
+
+const currentIndex = ref(0);
+let timer: any = null;
+
+const nextSlide = () => {
+  currentIndex.value = (currentIndex.value + 1) % cateringImages.length;
+};
+
+const prevSlide = () => {
+  currentIndex.value = (currentIndex.value - 1 + cateringImages.length) % cateringImages.length;
+};
+
+// Lógica de temporizador automático
+const startTimer = () => {
+  stopTimer();
+  timer = setInterval(nextSlide, 4500); 
+};
+
+const stopTimer = () => {
+  if (timer) clearInterval(timer);
+};
+
+const manualNav = (direction: 'next' | 'prev') => {
+  if (direction === 'next') nextSlide();
+  else prevSlide();
+  startTimer(); // Reinicia el contador al tocar flechas
+};
+
+onMounted(() => {
+  startTimer();
+});
+
+onUnmounted(() => {
+  stopTimer();
+});
+
+const form = ref({
+  nombre: '',
+  email: '',
+  fecha: '',
+  invitados: '',
+  tipoEvento: 'corporate',
+  detalles: ''
+});
 </script>
 
 <template>
-  <div class="pb-20">
+  <div class="pb-20 bg-white dark:bg-ukiyo-dark">
     <div class="relative h-[60vh] flex items-center justify-center overflow-hidden">
       <div class="absolute inset-0 z-0">
         <img src="https://images.unsplash.com/photo-1559339352-11d035aa65de?q=80&w=1920&auto=format&fit=crop" alt="Catering Ukiyo" class="w-full h-full object-cover opacity-90 dark:opacity-60">
@@ -105,16 +68,26 @@ const services = [
       <div class="relative z-10 text-center px-4 mt-10">
         <p class="text-white/90 text-sm md:text-lg uppercase tracking-[0.3em] mb-4 font-light">Experiencias Exclusivas</p>
         <h1 class="text-5xl md:text-7xl font-black text-white mb-6 uppercase tracking-tighter"> UKIYO <span class="text-ukiyo-gold">EVENTS</span></h1>
-        <p class="text-gray-200 text-lg max-w-2xl mx-auto font-light leading-relaxed"> Más que comida, creamos atmósferas. Lleva la sofisticación de la alta cocina japonesa a tu próximo evento. </p>
+        <p class="text-gray-200 text-lg max-w-2xl mx-auto font-light leading-relaxed leading-relaxed"> Más que comida, creamos atmósferas. </p>
       </div>
     </div>
 
     <div class="max-w-7xl mx-auto px-4 -mt-20 relative z-20 mb-20">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div v-for="(service, index) in services" :key="index" class="bg-white dark:bg-ukiyo-nav p-8 rounded-xl shadow-xl border border-gray-100 dark:border-gray-800 hover:-translate-y-2 transition-transform duration-300 flex flex-col items-center text-center">
-          <div class="text-4xl mb-4 bg-ukiyo-gold/10 w-16 h-16 flex items-center justify-center rounded-full">{{ service.icon }}</div>
-          <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-3">{{ service.title }}</h3>
-          <p class="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">{{ service.desc }}</p>
+        <div class="service-card">
+          <div class="text-4xl mb-4 bg-ukiyo-gold/10 w-16 h-16 flex items-center justify-center rounded-full">🏢</div>
+          <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-3">Eventos Corporativos</h3>
+          <p class="text-gray-600 dark:text-gray-400 text-sm leading-relaxed leading-relaxed">Impresiona a tus clientes y socios con alta cocina japonesa de nivel ejecutivo.</p>
+        </div>
+        <div class="service-card">
+          <div class="text-4xl mb-4 bg-ukiyo-gold/10 w-16 h-16 flex items-center justify-center rounded-full">💍</div>
+          <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-3">Bodas y Celebraciones</h3>
+          <p class="text-gray-600 dark:text-gray-400 text-sm leading-relaxed leading-relaxed">El día más especial merece el mejor sabor. Estaciones de sushi en vivo (Showcooking).</p>
+        </div>
+        <div class="service-card">
+          <div class="text-4xl mb-4 bg-ukiyo-gold/10 w-16 h-16 flex items-center justify-center rounded-full">🎉</div>
+          <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-3">Fiestas Privadas</h3>
+          <p class="text-gray-600 dark:text-gray-400 text-sm leading-relaxed leading-relaxed">Lleva la experiencia Ukiyo a tu casa con nuestras bandejas personalizadas.</p>
         </div>
       </div>
     </div>
@@ -122,99 +95,82 @@ const services = [
     <div class="max-w-7xl mx-auto px-4 mb-24">
       <div class="flex flex-col md:flex-row items-center gap-12">
         <div class="w-full md:w-1/2">
-          <h2 class="text-3xl md:text-4xl font-black text-gray-900 dark:text-white mb-6 uppercase"> El Arte del <span class="text-ukiyo-gold">Detalle</span></h2>
+          <h2 class="text-3xl md:text-4xl font-black text-gray-900 dark:text-white mb-6 uppercase tracking-tighter"> EL ARTE DEL <span class="text-ukiyo-gold">DETALLE</span></h2>
           <p class="text-gray-600 dark:text-gray-300 mb-6 leading-relaxed"> Nuestras bandejas de catering no son solo comida, son piezas de arte diseñadas para impactar visualmente antes del primer bocado. </p>
-          <ul class="space-y-3 text-gray-700 dark:text-gray-400 mb-8 font-medium">
+          <ul class="space-y-4 text-gray-700 dark:text-gray-400 font-medium italic">
             <li class="flex items-center gap-2"><span class="text-ukiyo-gold text-xl">✓</span> Pescado fresco cortado el mismo día. </li>
             <li class="flex items-center gap-2"><span class="text-ukiyo-gold text-xl">✓</span> Opciones veganas y sin gluten. </li>
             <li class="flex items-center gap-2"><span class="text-ukiyo-gold text-xl">✓</span> Presentación minimalista japonesa. </li>
           </ul>
         </div>
-        <div class="w-full md:w-1/2 relative">
-          <div class="absolute -inset-4 border-2 border-ukiyo-gold rounded-2xl transform translate-x-4 translate-y-4 z-0"></div>
-          <img src="https://images.unsplash.com/photo-1583623025817-d180a2158d79?q=80&w=800&auto=format&fit=crop" alt="Bandeja Sushi Catering" class="relative z-10 rounded-2xl shadow-2xl w-full object-cover h-[400px]">
+
+        <div class="w-full md:w-1/2 flex justify-center items-center">
+          <div class="p-1.5 border-2 border-ukiyo-gold rounded-[2rem] shadow-2xl relative bg-transparent">
+            
+            <div class="relative w-full h-[400px] sm:w-[500px] rounded-[1.8rem] overflow-hidden bg-black group border-2 border-ukiyo-gold/30">
+              
+              <img 
+                :src="cateringImages[currentIndex]" 
+                alt="Sushi Catering Ukiyo" 
+                class="w-full h-full object-cover"
+              >
+
+              <div class="absolute inset-0 flex items-center justify-between px-4 z-30 pointer-events-none">
+                <button @click="manualNav('prev')" class="nav-button pointer-events-auto">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
+                <button @click="manualNav('next')" class="nav-button pointer-events-auto">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+
+              <div class="absolute bottom-6 left-0 right-0 flex justify-center gap-2 z-30">
+                <span v-for="(_, i) in cateringImages" :key="i" 
+                  class="h-1.5 rounded-full transition-all duration-300"
+                  :class="currentIndex === i ? 'w-8 bg-ukiyo-gold' : 'w-2 bg-white/40'">
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="max-w-3xl mx-auto px-4">
-      <div class="bg-white dark:bg-ukiyo-nav rounded-2xl shadow-xl border-t-4 border-ukiyo-gold p-8 md:p-12 relative overflow-hidden">
-        <div class="text-center mb-10">
-          <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-2 uppercase tracking-wide">Solicita tu Presupuesto</h2>
-          <p class="text-gray-500 dark:text-gray-400">Diseñaremos una propuesta gastronómica a medida.</p>
-        </div>
-
-        <form @submit.prevent="submitCatering" class="space-y-6">
+      <div class="bg-white dark:bg-ukiyo-nav rounded-2xl shadow-xl border-t-4 border-ukiyo-gold p-8 md:p-12">
+        <h2 class="text-3xl font-bold text-center text-gray-900 dark:text-white mb-10 uppercase tracking-tight">Solicita tu Presupuesto</h2>
+        <form @submit.prevent class="space-y-6">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label for="name" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-tighter">Nombre / Empresa</label>
-              <input id="name" v-model="cateringForm.name" type="text" required @blur="validateName"
-                class="w-full px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-800 border text-gray-900 dark:text-white focus:ring-2 focus:ring-ukiyo-gold outline-none transition-all"
-                :class="errors.name ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'">
-              <p v-if="errors.name" class="text-[10px] text-red-500 font-bold mt-1 uppercase">{{ errors.name }}</p>
-            </div>
-
-            <div>
-              <label for="email" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-tighter">Email de contacto</label>
-              <input id="email" v-model="cateringForm.email" type="email" required @blur="validateEmail"
-                class="w-full px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-800 border text-gray-900 dark:text-white focus:ring-2 focus:ring-ukiyo-gold outline-none transition-all"
-                :class="errors.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'">
-              <p v-if="errors.email" class="text-[10px] text-red-500 font-bold mt-1 uppercase">{{ errors.email }}</p>
-            </div>
-
-            <div>
-              <label for="phone" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-tighter">Teléfono</label>
-              <input id="phone" v-model="cateringForm.phone" type="tel" required @blur="validatePhone"
-                class="w-full px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-800 border text-gray-900 dark:text-white focus:ring-2 focus:ring-ukiyo-gold outline-none transition-all"
-                :class="errors.phone ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'">
-              <p v-if="errors.phone" class="text-[10px] text-red-500 font-bold mt-1 uppercase">{{ errors.phone }}</p>
-            </div>
-
-            <div>
-              <label for="date" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-tighter">Fecha estimada</label>
-              <input id="date" v-model="cateringForm.date" type="date" :min="today" required @blur="validateDate"
-                class="w-full px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-800 border text-gray-900 dark:text-white focus:ring-2 focus:ring-ukiyo-gold outline-none transition-all"
-                :class="errors.date ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'">
-              <p v-if="errors.date" class="text-[10px] text-red-500 font-bold mt-1 uppercase">{{ errors.date }}</p>
-            </div>
-
-            <div class="md:col-span-2">
-              <label for="guests" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-tighter">Nº Invitados</label>
-              <input id="guests" v-model="cateringForm.guests" type="number" required @blur="validateGuests"
-                class="w-full px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-800 border text-gray-900 dark:text-white focus:ring-2 focus:ring-ukiyo-gold outline-none transition-all"
-                :class="errors.guests ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'">
-              <p v-if="errors.guests" class="text-[10px] text-red-500 font-bold mt-1 uppercase">{{ errors.guests }}</p>
-            </div>
+            <input v-model="form.nombre" type="text" placeholder="Nombre / Empresa" class="input-style">
+            <input v-model="form.email" type="email" placeholder="Email de contacto" class="input-style">
+            <input v-model="form.fecha" type="date" class="input-style">
+            <input v-model="form.invitados" type="number" placeholder="Nº Invitados" class="input-style">
           </div>
-
-          <div>
-            <label for="eventType" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-tighter">Tipo de Evento</label>
-            <select id="eventType" v-model="cateringForm.eventType" class="w-full px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-ukiyo-gold outline-none transition-all">
-              <option value="corporate">Evento Corporativo</option>
-              <option value="wedding">Boda / Comunión</option>
-              <option value="birthday">Fiesta Privada</option>
-              <option value="other">Otro</option>
-            </select>
-          </div>
-
-          <div>
-            <label for="message" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-tighter">Detalles adicionales</label>
-            <textarea id="message" v-model="cateringForm.message" rows="4" class="w-full px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-ukiyo-gold outline-none transition-all" placeholder="Cuéntanos más sobre lo que tienes en mente..."></textarea>
-          </div>
-
-          <button type="submit" :disabled="isSubmitting" class="w-full py-4 bg-ukiyo-gold hover:bg-[#b08d4a] text-black font-black tracking-widest uppercase rounded-lg shadow-lg hover:-translate-y-1 transition-all disabled:opacity-50">
-            <span v-if="isSubmitting">Enviando solicitud...</span>
-            <span v-else>Enviar Solicitud de Presupuesto</span>
+          <select v-model="form.tipoEvento" class="input-style">
+            <option value="corporate">Evento Corporativo</option>
+            <option value="wedding">Boda / Celebración</option>
+            <option value="birthday">Fiesta Privada</option>
+          </select>
+          <textarea v-model="form.detalles" rows="4" class="input-style" placeholder="Cuéntanos más sobre lo que tienes en mente..."></textarea>
+          <button type="submit" class="w-full py-4 bg-ukiyo-gold hover:bg-white text-black font-black uppercase tracking-widest rounded-lg transition-all shadow-lg hover:scale-[1.01]">
+            Enviar Solicitud
           </button>
         </form>
-
-        <transition enter-active-class="transition duration-300" enter-from-class="opacity-0 scale-95" enter-to-class="opacity-100 scale-100">
-          <div v-if="showSuccess" class="absolute inset-0 bg-white/95 dark:bg-ukiyo-nav/95 z-50 flex flex-col items-center justify-center p-8 text-center rounded-2xl border-2 border-green-500">
-            <h3 class="text-2xl font-black text-gray-900 dark:text-white uppercase mb-2">¡Solicitud Enviada!</h3>
-            <p class="text-gray-600 dark:text-gray-400">Te contactaremos en menos de 24 horas.</p>
-          </div>
-        </transition>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.service-card {
+  @apply bg-white dark:bg-ukiyo-nav p-8 rounded-xl shadow-xl border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-2;
+}
+
+.input-style {
+  @apply w-full px-4 py-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-ukiyo-gold outline-none;
+}
+
+.nav-button {
+  @apply w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center hover:bg-ukiyo-gold hover:text-black transition-all shadow-xl;
+}
+</style>
