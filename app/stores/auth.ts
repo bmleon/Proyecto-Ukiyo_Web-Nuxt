@@ -1,59 +1,49 @@
 import { defineStore } from 'pinia';
 
-interface User {
+// 1. Definimos las nuevas interfaces según el modelo de Fabricio
+export interface UserProfile {
   id: number;
-  nombre: string;
-  email: string;
-  rol: string;
+  username: string;
+  avatarUrl?: string;
 }
 
-export const useAuthStore = defineStore('auth', () => {
-  const user = ref<User | null>(null);
-  const token = ref<string | null>(null);
+export interface User {
+  id: number;
+  email: string;
+  profile?: UserProfile;
+}
 
-  const isAuthenticated = computed(() => !!token.value);
-
-  // Inicializar el store desde localStorage (para que no se borre al refrescar)
-  // Usamos import.meta.client para evitar errores de TypeScript con 'process'
-  const initAuth = () => {
-    if (import.meta.client) {
-      const savedToken = localStorage.getItem('auth_token');
-      const savedUser = localStorage.getItem('auth_user');
-      if (savedToken && savedUser) {
-        token.value = savedToken;
-        user.value = JSON.parse(savedUser);
+export const useAuthStore = defineStore('auth', {
+  state: () => ({
+    user: null as User | null,
+    token: null as string | null,
+    isAuthenticated: false,
+  }),
+  actions: {
+    saveSession(userData: User, token: string) {
+      this.user = userData;
+      this.token = token;
+      this.isAuthenticated = true;
+      
+      // Guardamos en el navegador para no perder la sesión al recargar
+      localStorage.setItem('auth_token', token);
+      localStorage.setItem('auth_user', JSON.stringify(userData));
+    },
+    initAuth() {
+      const token = localStorage.getItem('auth_token');
+      const user = localStorage.getItem('auth_user');
+      if (token && user) {
+        this.token = token;
+        this.user = JSON.parse(user);
+        this.isAuthenticated = true;
       }
-    }
-  };
-
-  // Guardar sesión tras login exitoso
-  const saveSession = (newUser: User, newToken: string) => {
-    user.value = newUser;
-    token.value = newToken;
-    if (import.meta.client) {
-      localStorage.setItem('auth_token', newToken);
-      localStorage.setItem('auth_user', JSON.stringify(newUser));
-    }
-  };
-
-  // Cerrar sesión
-  const logout = () => {
-    user.value = null;
-    token.value = null;
-    if (import.meta.client) {
+    },
+    logout() {
+      this.user = null;
+      this.token = null;
+      this.isAuthenticated = false;
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
     }
-    // Redirigir al inicio o login
-    navigateTo('/login');
-  };
-
-  return {
-    user,
-    token,
-    isAuthenticated,
-    initAuth,
-    saveSession,
-    logout
-  };
+  }
 });

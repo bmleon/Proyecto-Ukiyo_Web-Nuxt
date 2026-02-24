@@ -5,12 +5,31 @@ export default defineNuxtConfig({
     compatibilityVersion: 4,
   },
 
-  modules: ['@nuxtjs/tailwindcss', '@pinia/nuxt', '@nuxt/image'],
+  modules: [
+    '@nuxtjs/tailwindcss', 
+    '@pinia/nuxt', 
+    '@nuxt/image',
+    '@nuxtjs/i18n'
+  ],
+
+  i18n: {
+    strategy: 'prefix_except_default',
+    defaultLocale: 'es',
+    // Apuntamos a la carpeta de traducciones
+    langDir: 'locales', 
+    locales: [
+      { code: 'es', name: 'Español', iso: 'es-ES', file: 'es.json' },
+      { code: 'en', name: 'English', iso: 'en-US', file: 'en.json' }
+    ],
+    detectBrowserLanguage: {
+      useCookie: true,
+      cookieKey: 'i18n_redirected',
+      redirectOn: 'root',
+    }
+  },
 
   runtimeConfig: {
     public: {
-      // Lo dejamos vacío. Nuxt inyectará aquí automáticamente el valor 
-      // de NUXT_PUBLIC_API_BASE que tienes en tu archivo .env
       apiBase: '' 
     }
   },
@@ -18,7 +37,13 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
 
   app: {
-    // ... tu configuración de head ...
+    head: {
+      title: 'Ukiyo | Alta Cocina Japonesa',
+      meta: [
+        { charset: 'utf-8' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+      ],
+    }
   },
 
   devtools: {

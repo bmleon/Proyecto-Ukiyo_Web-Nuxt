@@ -2,14 +2,17 @@
 import { ref } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 
-// Interfaz para la respuesta del servidor según el estándar de NestJS
+// Interfaz actualizada
 interface AuthResponse {
-  access_token: string;
+  accessToken: string;
   user: {
     id: number;
-    nombre: string;
     email: string;
-    rol: string;
+    profile?: {
+      id: number;
+      username: string;
+      avatarUrl?: string;
+    };
   };
 }
 
@@ -24,7 +27,6 @@ const isLoading = ref(false);
 const errorMessage = ref('');
 const successMessage = ref('');
 
-// URL base que te ha pasado tu compañero
 const API_URL = 'http://ukiyocazorla.es/api';
 
 const toggleAuth = () => {
@@ -36,42 +38,82 @@ const toggleAuth = () => {
 const handleSubmit = async () => {
   isLoading.value = true;
   errorMessage.value = '';
+  successMessage.value = '';
 
   try {
     if (isLogin.value) {
-      // --- INTENTO DE LOGIN ---
-      const response = await $fetch<AuthResponse>(`${API_URL}/login`, {
+      // ==========================================
+      // FLUJO 1: INICIAR SESIÓN NORMAL
+      // ==========================================
+      const response = await $fetch<AuthResponse>(`${API_URL}/auth/login`, {
         method: 'POST',
         body: {
-          // Asegúrate con Fabricio si el campo es 'username' o 'email'
-          username: identificador.value, 
-          password: password.value
-        }
-      });
-
-      // Si el servidor responde con el token, guardamos sesión
-      if (response.access_token) {
-        authStore.saveSession(response.user, response.access_token);
-        await navigateTo('/');
-      }
-
-    } else {
-      // --- INTENTO DE REGISTRO ---
-      await $fetch(`${API_URL}/registro`, {
-        method: 'POST',
-        body: {
-          nombre: name.value,
           email: identificador.value,
           password: password.value
         }
       });
+
+      if (response.accessToken) {
+        authStore.saveSession(response.user, response.accessToken);
+        await navigateTo('/');
+      }
+
+    } else {
+      // ==========================================
+      // FLUJO 2: REGISTRO ORQUESTADO (3 PASOS)
+      // ==========================================
+
+      // PASO 1: Nace la cuenta (Seguridad)
+      await $fetch(`${API_URL}/usuarios`, {
+        method: 'POST',
+        body: {
+          email: identificador.value,
+          password: password.value
+        }
+      });
+
+      // PASO 2: Autenticamos la nueva cuenta para obtener el Token
+      const loginResponse = await $fetch<AuthResponse>(`${API_URL}/auth/login`, {
+        method: 'POST',
+        body: {
+          email: identificador.value,
+          password: password.value
+        }
+      });
+
+      const token = loginResponse.accessToken;
+
+      // PASO 3: Creamos la Identidad (Perfil) vinculada a esa cuenta
+      const profileResponse = await $fetch<any>(`${API_URL}/perfiles`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: {
+          username: name.value
+        }
+      });
+
+      // ¡ÉXITO! Construimos el usuario completo para guardarlo en Pinia
+      const completeUser = {
+        ...loginResponse.user,
+        profile: {
+          id: profileResponse.id || Date.now(), // Cogemos el ID real si el backend lo devuelve
+          username: name.value
+        }
+      };
+
+      // Guardamos sesión directamente y redirigimos (así el usuario no tiene que hacer login manual tras registrarse)
+      authStore.saveSession(completeUser, token);
       
-      successMessage.value = '¡Cuenta creada! Ya puedes iniciar sesión.';
-      isLogin.value = true;
+      successMessage.value = '¡Cuenta y perfil creados con éxito! Entrando...';
+      
+      setTimeout(async () => {
+        await navigateTo('/');
+      }, 1500);
     }
   } catch (error: any) {
-    console.error('Error:', error);
-    // Si el error es de CORS, aquí te seguirá saliendo "Failed to fetch"
+    console.error('Error en el flujo de Auth:', error);
     errorMessage.value = error.data?.message || 'Error de conexión. Revisa los CORS en el servidor.';
   } finally {
     isLoading.value = false;
@@ -93,26 +135,34 @@ const handleSubmit = async () => {
 
         <form @submit.prevent="handleSubmit" class="space-y-5">
           <div v-if="!isLogin">
-            <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Nombre</label>
-            <input v-model="name" type="text" required class="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-transparent focus:ring-2 focus:ring-ukiyo-gold outline-none text-gray-900 dark:text-white transition-all">
+            <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Nombre de Usuario</label>
+            <input v-model="name" type="text" required class="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-transparent focus:ring-2 focus:ring-ukiyo-gold outline-none text-gray-900 dark:text-white transition-all" />
           </div>
 
           <div>
-            <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Usuario / Email</label>
-            <input v-model="identificador" type="text" required class="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-transparent focus:ring-2 focus:ring-ukiyo-gold outline-none text-gray-900 dark:text-white transition-all">
+            <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Email</label>
+            <input v-model="identificador" type="email" required class="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-transparent focus:ring-2 focus:ring-ukiyo-gold outline-none text-gray-900 dark:text-white transition-all" />
           </div>
 
           <div>
             <label class="block text-xs font-bold uppercase text-gray-400 mb-2">Contraseña</label>
-            <input v-model="password" type="password" required class="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-transparent focus:ring-2 focus:ring-ukiyo-gold outline-none text-gray-900 dark:text-white transition-all">
+            <input v-model="password" type="password" required class="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-transparent focus:ring-2 focus:ring-ukiyo-gold outline-none text-gray-900 dark:text-white transition-all" />
           </div>
 
           <div v-if="errorMessage" class="text-red-500 text-xs font-bold text-center bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-100 dark:border-red-800">
             {{ errorMessage }}
           </div>
+          
+          <div v-if="successMessage" class="text-green-500 text-xs font-bold text-center bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-100 dark:border-green-800">
+            {{ successMessage }}
+          </div>
 
-          <button type="submit" :disabled="isLoading" class="w-full py-4 bg-ukiyo-gold text-black font-black uppercase tracking-widest rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50">
-            {{ isLoading ? 'Cargando...' : (isLogin ? 'Entrar' : 'Crear Cuenta') }}
+          <button type="submit" :disabled="isLoading" class="w-full py-4 bg-ukiyo-gold text-black font-black uppercase tracking-widest rounded-xl hover:scale-[1.02] transition-all disabled:opacity-50 flex justify-center items-center gap-2">
+            <svg v-if="isLoading" class="animate-spin h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>{{ isLoading ? 'Cargando...' : (isLogin ? 'Entrar' : 'Crear Cuenta') }}</span>
           </button>
 
           <button type="button" @click="toggleAuth" class="w-full text-xs font-bold text-gray-500 uppercase tracking-widest mt-4">
