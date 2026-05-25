@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
+import { ApiCateringRepository } from '~/infrastructure/repositories/ApiCateringRepository';
+import { ValidarCateringUseCase } from '~/core/usecases/ValidarCateringUseCase';
+import type { SolicitudCatering } from '~/core/domain/catering.model';
 
 const localePath = useLocalePath();
 const { t } = useI18n();
+const cateringRepository = new ApiCateringRepository();
+
+// --- ESTADOS DE CONTROL DE ENVÍO ---
+const isSubmitting = ref(false);
+const showSuccess = ref(false);
+const showError = ref(false);
 
 // 1. Fotos de catering (.jpeg)
 const cateringImages = [
@@ -24,7 +33,6 @@ const prevSlide = () => {
   currentIndex.value = (currentIndex.value - 1 + cateringImages.length) % cateringImages.length;
 };
 
-// Lógica de temporizador automático
 const startTimer = () => {
   stopTimer();
   timer = setInterval(nextSlide, 4500); 
@@ -37,7 +45,7 @@ const stopTimer = () => {
 const manualNav = (direction: 'next' | 'prev') => {
   if (direction === 'next') nextSlide();
   else prevSlide();
-  startTimer(); // Reinicia el contador al tocar flechas
+  startTimer(); 
 };
 
 onMounted(() => {
@@ -48,6 +56,7 @@ onUnmounted(() => {
   stopTimer();
 });
 
+// Reactivo del formulario visual
 const form = ref({
   nombre: '',
   email: '',
@@ -56,6 +65,54 @@ const form = ref({
   tipoEvento: 'corporate',
   detalles: ''
 });
+
+// --- ENVÍO DE DATOS AL BACKEND REAL (CON CIBERSEGURIDAD) ---
+const submitCatering = async () => {
+  isSubmitting.value = true;
+  showError.value = false;
+  showSuccess.value = false;
+
+  // 1. Mapeamos los datos brutos recibidos del formulario HTML
+  const datosBrutos: SolicitudCatering = {
+    nombre: form.value.nombre,
+    email: form.value.email,
+    fecha: form.value.fecha,
+    invitados: Number(form.value.invitados), // Forzamos conversión estricta a número
+    tipoEvento: form.value.tipoEvento,
+    detalles: form.value.detalles
+  };
+
+  // 2. Interceptamos y sanitizamos los datos con las reglas de ciberseguridad perimetral
+  const datosSanitizados = ValidarCateringUseCase.procesar(datosBrutos);
+
+  // Si no supera el filtro de seguridad (datos corruptos o maliciosos) cancelamos envío
+  if (!datosSanitizados) {
+    isSubmitting.value = false;
+    showError.value = true;
+    return;
+  }
+
+  // 3. Enviamos los datos completamente limpios a la capa de infraestructura
+  const exito = await cateringRepository.enviarSolicitud(datosSanitizados);
+  isSubmitting.value = false;
+
+  if (exito) {
+    showSuccess.value = true;
+    // Reseteamos el formulario a su estado original
+    form.value = {
+      nombre: '',
+      email: '',
+      fecha: '',
+      invitados: '',
+      tipoEvento: 'corporate',
+      detalles: ''
+    };
+    // Ocultamos la cortina de éxito tras 5 segundos
+    setTimeout(() => showSuccess.value = false, 5000);
+  } else {
+    showError.value = true;
+  }
+};
 </script>
 
 <template>
@@ -68,7 +125,7 @@ const form = ref({
       <div class="relative z-10 text-center px-4 mt-10">
         <p class="text-white/90 text-sm md:text-lg uppercase tracking-[0.3em] mb-4 font-light">Experiencias Exclusivas</p>
         <h1 class="text-5xl md:text-7xl font-black text-white mb-6 uppercase tracking-tighter"> UKIYO <span class="text-ukiyo-gold">EVENTS</span></h1>
-        <p class="text-gray-200 text-lg max-w-2xl mx-auto font-light leading-relaxed leading-relaxed"> Más que comida, creamos atmósferas. </p>
+        <p class="text-gray-200 text-lg max-w-2xl mx-auto font-light leading-relaxed"> Más que comida, creamos atmósferas. </p>
       </div>
     </div>
 
@@ -77,17 +134,17 @@ const form = ref({
         <div class="service-card">
           <div class="text-4xl mb-4 bg-ukiyo-gold/10 w-16 h-16 flex items-center justify-center rounded-full">🏢</div>
           <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-3">Eventos Corporativos</h3>
-          <p class="text-gray-600 dark:text-gray-400 text-sm leading-relaxed leading-relaxed">Impresiona a tus clientes y socios con alta cocina japonesa de nivel ejecutivo.</p>
+          <p class="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">Impresiona a tus clientes y socios con alta cocina japonesa de nivel ejecutivo.</p>
         </div>
         <div class="service-card">
           <div class="text-4xl mb-4 bg-ukiyo-gold/10 w-16 h-16 flex items-center justify-center rounded-full">💍</div>
           <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-3">Bodas y Celebraciones</h3>
-          <p class="text-gray-600 dark:text-gray-400 text-sm leading-relaxed leading-relaxed">El día más especial merece el mejor sabor. Estaciones de sushi en vivo (Showcooking).</p>
+          <p class="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">El día más especial merece el mejor sabor. Estaciones de sushi en vivo (Showcooking).</p>
         </div>
         <div class="service-card">
           <div class="text-4xl mb-4 bg-ukiyo-gold/10 w-16 h-16 flex items-center justify-center rounded-full">🎉</div>
           <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-3">Fiestas Privadas</h3>
-          <p class="text-gray-600 dark:text-gray-400 text-sm leading-relaxed leading-relaxed">Lleva la experiencia Ukiyo a tu casa con nuestras bandejas personalizadas.</p>
+          <p class="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">Lleva la experiencia Ukiyo a tu casa con nuestras bandejas personalizadas.</p>
         </div>
       </div>
     </div>
@@ -106,15 +163,12 @@ const form = ref({
 
         <div class="w-full md:w-1/2 flex justify-center items-center">
           <div class="p-1.5 border-2 border-ukiyo-gold rounded-[2rem] shadow-2xl relative bg-transparent">
-            
             <div class="relative w-full h-[400px] sm:w-[500px] rounded-[1.8rem] overflow-hidden bg-black group border-2 border-ukiyo-gold/30">
-              
               <img 
                 :src="cateringImages[currentIndex]" 
                 alt="Sushi Catering Ukiyo" 
                 class="w-full h-full object-cover"
               >
-
               <div class="absolute inset-0 flex items-center justify-between px-4 z-30 pointer-events-none">
                 <button @click="manualNav('prev')" class="nav-button pointer-events-auto">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
@@ -123,7 +177,6 @@ const form = ref({
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
                 </button>
               </div>
-
               <div class="absolute bottom-6 left-0 right-0 flex justify-center gap-2 z-30">
                 <span v-for="(_, i) in cateringImages" :key="i" 
                   class="h-1.5 rounded-full transition-all duration-300"
@@ -137,25 +190,43 @@ const form = ref({
     </div>
 
     <div class="max-w-3xl mx-auto px-4">
-      <div class="bg-white dark:bg-ukiyo-nav rounded-2xl shadow-xl border-t-4 border-ukiyo-gold p-8 md:p-12">
+      <div class="bg-white dark:bg-ukiyo-nav rounded-2xl shadow-xl border-t-4 border-ukiyo-gold p-8 md:p-12 relative overflow-hidden">
         <h2 class="text-3xl font-bold text-center text-gray-900 dark:text-white mb-10 uppercase tracking-tight">Solicita tu Presupuesto</h2>
-        <form @submit.prevent class="space-y-6">
+        
+        <form @submit.prevent="submitCatering" class="space-y-6">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <input v-model="form.nombre" type="text" placeholder="Nombre / Empresa" class="input-style">
-            <input v-model="form.email" type="email" placeholder="Email de contacto" class="input-style">
-            <input v-model="form.fecha" type="date" class="input-style">
-            <input v-model="form.invitados" type="number" placeholder="Nº Invitados" class="input-style">
+            <input v-model="form.nombre" type="text" placeholder="Nombre / Empresa" class="input-style" required>
+            <input v-model="form.email" type="email" placeholder="Email de contacto" class="input-style" required>
+            <input v-model="form.fecha" type="date" class="input-style" required>
+            <input v-model="form.invitados" type="number" placeholder="Nº Invitados" class="input-style" required>
           </div>
           <select v-model="form.tipoEvento" class="input-style">
             <option value="corporate">Evento Corporativo</option>
-            <option value="wedding">Boda / Celebración</option>
+            <option value="wedding">Boda / Comunión</option>
             <option value="birthday">Fiesta Privada</option>
           </select>
-          <textarea v-model="form.detalles" rows="4" class="input-style" placeholder="Cuéntanos más sobre lo que tienes en mente..."></textarea>
-          <button type="submit" class="w-full py-4 bg-ukiyo-gold hover:bg-white text-black font-black uppercase tracking-widest rounded-lg transition-all shadow-lg hover:scale-[1.01]">
-            Enviar Solicitud
+          <textarea v-model="form.detalles" rows="4" class="input-style" placeholder="Cuéntanos más..."></textarea>
+          
+          <p v-if="showError" class="text-xs text-red-500 font-bold uppercase tracking-tight text-center">
+            ❌ Hubo un error de formato o conexión con el servidor. Inténtalo de nuevo.
+          </p>
+
+          <button type="submit" :disabled="isSubmitting" class="w-full py-4 bg-ukiyo-gold hover:bg-white text-black font-black uppercase tracking-widest rounded-lg transition-all shadow-lg hover:scale-[1.01] disabled:opacity-50 flex justify-center items-center">
+            <span v-if="isSubmitting">Enviando...</span>
+            <span v-else>Enviar Solicitud</span>
           </button>
         </form>
+
+        <transition enter-active-class="transition duration-300" enter-from-class="opacity-0 scale-95" enter-to-class="opacity-100 scale-100">
+          <div v-if="showSuccess" class="absolute inset-0 bg-white/95 dark:bg-ukiyo-nav/95 z-40 flex flex-col items-center justify-center p-8 text-center rounded-2xl border-2 border-green-500">
+            <div class="w-16 h-16 bg-green-100 dark:bg-green-900/50 rounded-full flex items-center justify-center mb-6">
+              <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <h3 class="text-2xl font-black text-gray-900 dark:text-white uppercase mb-2">¡Solicitud Recibida!</h3>
+            <p class="text-gray-600 dark:text-gray-400">Hemos guardado los detalles de tu evento. Te responderemos con un presupuesto personalizado muy pronto.</p>
+          </div>
+        </transition>
+
       </div>
     </div>
   </div>
